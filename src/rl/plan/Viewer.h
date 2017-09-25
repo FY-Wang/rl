@@ -24,8 +24,8 @@
 // POSSIBILITY OF SUCH DAMAGE.
 //
 
-#ifndef _RL_PLAN_VIEWER_H_
-#define _RL_PLAN_VIEWER_H_
+#ifndef RL_PLAN_VIEWER_H
+#define RL_PLAN_VIEWER_H
 
 #include <rl/math/Transform.h>
 #include <rl/math/Vector.h>
@@ -85,4 +85,4 @@ namespace rl
 	}
 }
 
-#endif // VIEWER_H_
+#endif // VIEWER_H

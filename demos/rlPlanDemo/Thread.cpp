@@ -31,9 +31,12 @@
 #include <rl/math/Quaternion.h>
 #include <rl/math/Unit.h>
 #include <rl/plan/Eet.h>
+#include <rl/plan/GnatNearestNeighbors.h>
+#include <rl/plan/KdtreeBoundingBoxNearestNeighbors.h>
+#include <rl/plan/KdtreeNearestNeighbors.h>
+#include <rl/plan/LinearNearestNeighbors.h>
 #include <rl/plan/Prm.h>
 #include <rl/plan/Rrt.h>
-#include <rl/util/Timer.h>
 
 #include "MainWindow.h"
 #include "Thread.h"
@@ -41,6 +44,7 @@
 
 Thread::Thread(QObject* parent) :
 	QThread(parent),
+	animate(true),
 	quit(false),
 	swept(false),
 	running(false)
@@ -166,22 +170,20 @@ Thread::run()
 	
 	this->running = true;
 	
-	rl::util::Timer timer;
-	
 	this->drawConfiguration(*MainWindow::instance()->planner->start);
 	
-	if (NULL != MainWindow::instance()->planner->viewer)
+	if (nullptr != MainWindow::instance()->planner->viewer)
 	{
-		usleep(static_cast< std::size_t >(2.0f * 1000.0f * 1000.0f));
+		usleep(static_cast<std::size_t>(2.0f * 1000.0f * 1000.0f));
 	}
 	
 	if (!this->running) return;
 	
 	this->drawConfiguration(*MainWindow::instance()->planner->goal);
 	
-	if (NULL != MainWindow::instance()->planner->viewer)
+	if (nullptr != MainWindow::instance()->planner->viewer)
 	{
-		usleep(static_cast< std::size_t >(2.0f * 1000.0f * 1000.0f));
+		usleep(static_cast<std::size_t>(2.0f * 1000.0f * 1000.0f));
 	}
 	
 	if (!this->running) return;
@@ -193,10 +195,10 @@ Thread::run()
 	}
 	
 	std::cout << "solve() ... " << std::endl;;
-	timer.start();
+	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 	bool solved = MainWindow::instance()->planner->solve();
-	timer.stop();
-	std::cout << "solve() " << (solved ? "true" : "false") << " " << timer.elapsed() * 1000.0f << " ms" << std::endl;
+	std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+	std::cout << "solve() " << (solved ? "true" : "false") << " " << std::chrono::duration_cast<std::chrono::duration<double>>(stop - start).count() * 1000 << " ms" << std::endl;
 	
 	std::fstream benchmark;
 	benchmark.open("benchmark.csv", std::ios::app | std::ios::in | std::ios::out);
@@ -205,7 +207,7 @@ Thread::run()
 	if (std::ifstream::traits_type::eof() == peek)
 	{
 		benchmark.clear();
-		benchmark << "Date,Time,Solved,Planner,Robot,Vertices,Edges,Total CD,Free CD,Exploration Duration (s),Duration (s), Path Length" << std::endl;
+		benchmark << "Date,Time,Solved,Engine,Planner,Robot,Nearest Neighbors,Vertices,Edges,Total CD,Free CD,Exploration Duration (s),Duration (s), Path Length" << std::endl;
 	}
 	else
 	{
@@ -216,6 +218,8 @@ Thread::run()
 	benchmark << ",";
 	benchmark << (solved ? "true" : "false");
 	benchmark << ",";
+	benchmark << MainWindow::instance()->engine.toUpper().toStdString();
+	benchmark << ",";
 	benchmark << MainWindow::instance()->planner->getName();
 	benchmark << ",";
 	benchmark << MainWindow::instance()->model->getManufacturer();
@@ -223,22 +227,65 @@ Thread::run()
 	benchmark << MainWindow::instance()->model->getName();
 	benchmark << ",";
 	
-	if (rl::plan::Prm* prm = dynamic_cast< rl::plan::Prm* >(MainWindow::instance()->planner.get()))
+	if (!MainWindow::instance()->nearestNeighbors.empty())
+	{
+		if (rl::plan::GnatNearestNeighbors* gnatNearestNeighbors = dynamic_cast<rl::plan::GnatNearestNeighbors*>(MainWindow::instance()->nearestNeighbors.front().get()))
+		{
+			benchmark << "GNAT";
+			
+			boost::optional<std::size_t> checks = gnatNearestNeighbors->getChecks();
+			
+			if (checks)
+			{
+				benchmark << " (" << checks.get() << " Checks)";
+			}
+		}
+		else if (rl::plan::KdtreeBoundingBoxNearestNeighbors* kdtreeBoundingBoxNearestNeighbors = dynamic_cast<rl::plan::KdtreeBoundingBoxNearestNeighbors*>(MainWindow::instance()->nearestNeighbors.front().get()))
+		{
+			benchmark << "k-d Tree Bounding Box";
+			
+			boost::optional<std::size_t> checks = kdtreeBoundingBoxNearestNeighbors->getChecks();
+			
+			if (checks)
+			{
+				benchmark << " (" << checks.get() << " Checks)";
+			}
+		}
+		else if (rl::plan::KdtreeNearestNeighbors* kdtreeNearestNeighbors = dynamic_cast<rl::plan::KdtreeNearestNeighbors*>(MainWindow::instance()->nearestNeighbors.front().get()))
+		{
+			benchmark << "k-d Tree";
+			
+			boost::optional<std::size_t> checks = kdtreeNearestNeighbors->getChecks();
+			
+			if (checks)
+			{
+				benchmark << " (" << checks.get() << " Checks)";
+			}
+		}
+		else if (rl::plan::LinearNearestNeighbors* linearNearestNeighbors = dynamic_cast<rl::plan::LinearNearestNeighbors*>(MainWindow::instance()->nearestNeighbors.front().get()))
+		{
+			benchmark << "Linear";
+		}
+	}
+	
+	benchmark << ",";
+	
+	if (rl::plan::Prm* prm = dynamic_cast<rl::plan::Prm*>(MainWindow::instance()->planner.get()))
 	{
 		benchmark << prm->getNumVertices();
 	}
-	else if (rl::plan::Rrt* rrt = dynamic_cast< rl::plan::Rrt* >(MainWindow::instance()->planner.get()))
+	else if (rl::plan::Rrt* rrt = dynamic_cast<rl::plan::Rrt*>(MainWindow::instance()->planner.get()))
 	{
 		benchmark << rrt->getNumVertices();
 	}
 	
 	benchmark << ",";
 	
-	if (rl::plan::Prm* prm = dynamic_cast< rl::plan::Prm* >(MainWindow::instance()->planner.get()))
+	if (rl::plan::Prm* prm = dynamic_cast<rl::plan::Prm*>(MainWindow::instance()->planner.get()))
 	{
 		benchmark << prm->getNumEdges();
 	}
-	else if (rl::plan::Rrt* rrt = dynamic_cast< rl::plan::Rrt* >(MainWindow::instance()->planner.get()))
+	else if (rl::plan::Rrt* rrt = dynamic_cast<rl::plan::Rrt*>(MainWindow::instance()->planner.get()))
 	{
 		benchmark << rrt->getNumEdges();
 	}
@@ -249,9 +296,9 @@ Thread::run()
 	benchmark << MainWindow::instance()->model->getFreeQueries();
 	benchmark << ",";
 	
-	if (rl::plan::Eet* eet = dynamic_cast< rl::plan::Eet* >(MainWindow::instance()->planner.get()))
+	if (rl::plan::Eet* eet = dynamic_cast<rl::plan::Eet*>(MainWindow::instance()->planner.get()))
 	{
-		benchmark << eet->getExplorationTime();
+		benchmark << std::chrono::duration_cast<std::chrono::duration<double>>(eet->getExplorationDuration()).count();
 	}
 	else
 	{
@@ -259,13 +306,13 @@ Thread::run()
 	}
 	
 	benchmark << ",";
-	benchmark << timer.elapsed();
+	benchmark << std::chrono::duration_cast<std::chrono::duration<double>>(stop - start).count();
 	
 	rl::plan::VectorList path;
 	
 	if (solved)
 	{
-		MainWindow::instance()->planner->getPath(path);
+		path = MainWindow::instance()->planner->getPath();
 		
 		rl::plan::VectorList::iterator i = path.begin();
 		rl::plan::VectorList::iterator j = ++path.begin();
@@ -294,33 +341,32 @@ Thread::run()
 	
 	if (solved)
 	{
-		if (this->swept)
-		{
-			this->drawSweptVolume(path);
-			return;
-		}
-		
 		this->drawConfigurationPath(path);
 		
 		if (!this->running) return;
 		
-		if (NULL != MainWindow::instance()->optimizer)
+		if (nullptr != MainWindow::instance()->optimizer)
 		{
-			usleep(static_cast< std::size_t >(2.0f * 1000.0f * 1000.0f));
+			usleep(static_cast<std::size_t>(2.0f * 1000.0f * 1000.0f));
 			
 			std::cout << "optimize() ... " << std::endl;;
-			timer.start();
+			start = std::chrono::steady_clock::now();
 			MainWindow::instance()->optimizer->process(path);
-			timer.stop();
-			std::cout << "optimize() " << timer.elapsed() * 1000.0f << " ms" << std::endl;
+			stop = std::chrono::steady_clock::now();
+			std::cout << "optimize() " << std::chrono::duration_cast<std::chrono::duration<double>>(stop - start).count() * 1000 << " ms" << std::endl;
 			
 			this->drawConfigurationPath(path);
 		}
 		
-		rl::math::Vector diff(MainWindow::instance()->model->getDof());
-		rl::math::Vector inter(MainWindow::instance()->model->getDof());
+		if (this->swept)
+		{
+			this->drawSweptVolume(path);
+		}
 		
-		while (true)
+		rl::math::Vector diff(MainWindow::instance()->model->getDofPosition());
+		rl::math::Vector inter(MainWindow::instance()->model->getDofPosition());
+		
+		while (this->animate)
 		{
 			if (!this->running) break;
 			
@@ -330,7 +376,7 @@ Thread::run()
 			if (i != path.end() && j != path.end())
 			{
 				this->drawConfiguration(*i);
-				usleep(static_cast< std::size_t >(0.01f * 1000.0f * 1000.0f));
+				usleep(static_cast<std::size_t>(0.01f * 1000.0f * 1000.0f));
 			}
 			
 			rl::math::Real delta = MainWindow::instance()->viewer->delta;
@@ -347,7 +393,7 @@ Thread::run()
 					
 					MainWindow::instance()->model->interpolate(*i, *j, k / steps, inter);
 					this->drawConfiguration(inter);
-					usleep(static_cast< std::size_t >(0.01f * 1000.0f * 1000.0f));
+					usleep(static_cast<std::size_t>(0.01f * 1000.0f * 1000.0f));
 				}
 			}
 			
@@ -359,7 +405,7 @@ Thread::run()
 			if (ri != path.rend() && rj != path.rend())
 			{
 				this->drawConfiguration(*ri);
-				usleep(static_cast< std::size_t >(0.01f * 1000.0f * 1000.0f));
+				usleep(static_cast<std::size_t>(0.01f * 1000.0f * 1000.0f));
 			}
 			
 			for (; ri != path.rend() && rj != path.rend(); ++ri, ++rj)
@@ -374,7 +420,7 @@ Thread::run()
 					
 					MainWindow::instance()->model->interpolate(*ri, *rj, k / steps, inter);
 					this->drawConfiguration(inter);
-					usleep(static_cast< std::size_t >(0.01f * 1000.0f * 1000.0f));
+					usleep(static_cast<std::size_t>(0.01f * 1000.0f * 1000.0f));
 				}
 			}
 		}

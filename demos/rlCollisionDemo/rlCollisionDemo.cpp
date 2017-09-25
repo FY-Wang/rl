@@ -25,20 +25,29 @@
 //
 
 #include <iostream>
+#include <stdexcept>
 #include <QApplication>
 
 #include "MainWindow.h"
 
-MainWindow* MainWindow::singleton = NULL;
+MainWindow* MainWindow::singleton = nullptr;
 
 int
 main(int argc, char** argv)
 {
-	QApplication application(argc, argv);
-	
-	QObject::connect(&application, SIGNAL(lastWindowClosed()), &application, SLOT(quit()));
-	
-	MainWindow::instance()->show();
-	
-	return application.exec();
+	try
+	{
+		QApplication application(argc, argv);
+		
+		QObject::connect(&application, SIGNAL(lastWindowClosed()), &application, SLOT(quit()));
+		
+		MainWindow::instance()->show();
+		
+		return application.exec();
+	}
+	catch (const std::exception& e)
+	{
+		std::cerr << e.what() << std::endl;
+		return EXIT_FAILURE;
+	}
 }

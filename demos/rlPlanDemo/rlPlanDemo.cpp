@@ -33,7 +33,7 @@
 
 #include "MainWindow.h"
 
-MainWindow* MainWindow::singleton = NULL;
+MainWindow* MainWindow::singleton = nullptr;
 
 int
 main(int argc, char** argv)
@@ -42,10 +42,10 @@ main(int argc, char** argv)
 	{
 		QApplication application(argc, argv);
 		
-		qRegisterMetaType< rl::math::Real >("rl::math::Real");
-		qRegisterMetaType< rl::math::Transform >("rl::math::Transform");
-		qRegisterMetaType< rl::math::Vector >("rl::math::Vector");
-		qRegisterMetaType< rl::plan::VectorList >("rl::plan::VectorList");
+		qRegisterMetaType<rl::math::Real>("rl::math::Real");
+		qRegisterMetaType<rl::math::Transform>("rl::math::Transform");
+		qRegisterMetaType<rl::math::Vector>("rl::math::Vector");
+		qRegisterMetaType<rl::plan::VectorList>("rl::plan::VectorList");
 		
 		QObject::connect(&application, SIGNAL(lastWindowClosed()), &application, SLOT(quit()));
 		
@@ -56,6 +56,6 @@ main(int argc, char** argv)
 	catch (const std::exception& e)
 	{
 		std::cerr << e.what() << std::endl;
-		return -1;
+		return EXIT_FAILURE;
 	}
 }

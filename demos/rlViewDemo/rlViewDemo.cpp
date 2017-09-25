@@ -38,7 +38,7 @@ main(int argc, char** argv)
 	if (argc < 2)
 	{
 		std::cout << "Usage: rlViewDemo SCENEFILE" << std::endl;
-		return 1;
+		return EXIT_FAILURE;
 	}
 	
 	try
@@ -51,7 +51,7 @@ main(int argc, char** argv)
 		rl::sg::so::Scene scene;
 		scene.load(argv[1]);
 		
-		SoQtExaminerViewer viewer(widget, NULL, true, SoQtFullViewer::BUILD_POPUP);
+		SoQtExaminerViewer viewer(widget, nullptr, true, SoQtFullViewer::BUILD_POPUP);
 		viewer.setSceneGraph(scene.root);
 		viewer.setTransparencyType(SoGLRenderAction::SORTED_OBJECT_BLEND);
 		viewer.show();
@@ -61,11 +61,11 @@ main(int argc, char** argv)
 		SoQt::show(widget);
 		SoQt::mainLoop();
 		
-		return 0;
+		return EXIT_SUCCESS;
 	}
 	catch (const std::exception& e)
 	{
 		std::cerr << e.what() << std::endl;
-		return -1;
+		return EXIT_FAILURE;
 	}
 }
